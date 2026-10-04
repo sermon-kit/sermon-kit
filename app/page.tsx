@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import CandidateCard, { Candidate } from '@/components/CandidateCard';
 import YouTubePreview from '@/components/YouTubePreview';
+import SubtitleMp4Editor from '@/components/SubtitleMp4Editor';
 import { secondsToClock } from '@/lib/youtube';
 
 const durations = [30, 60, 180];
@@ -206,21 +207,6 @@ export default function Home() {
     await navigator.clipboard.writeText(text);
   }
 
-  async function downloadSrt() {
-    if (!selected) return;
-    try {
-      const caps = await ensureCaptions();
-      const srt = caps.map((x, i) => {
-        const start = Math.max(0, x.start - selected.start);
-        const end = Math.max(start + 0.8, Math.min(selected.end - selected.start, x.start + x.duration - selected.start));
-        return `${i + 1}\n${srtTime(start)} --> ${srtTime(end)}\n${x.text}\n`;
-      }).join('\n');
-      downloadBlob(new Blob([srt], { type: 'text/plain;charset=utf-8' }), `sermon-short-${selected.id}.srt`);
-    } catch (e: any) {
-      setError(e.message || 'SRT 생성 중 오류가 발생했습니다.');
-    }
-  }
-
   function downloadVoice() {
     if (voiceBlob && selected) downloadBlob(voiceBlob, `sermon-short-${selected.id}-ai-voice.wav`);
   }
@@ -240,8 +226,8 @@ export default function Home() {
 
       <section className="free-box">
         <strong>이 버전에 포함된 무료 기능</strong>
-        <div className="free-chips"><span>쇼츠 후보 5개</span><span>구간 미리보기</span><span>SNS 문구</span><span>SRT 자막</span><span>AI 음성 WAV</span></div>
-        <p>AI 이미지 자동 생성, YouTube 원본 자동 다운로드, 서버 MP4 렌더링은 비용·서비스 정책이 필요한 기능이라 이 무료판에서는 제외했습니다.</p>
+        <div className="free-chips"><span>쇼츠 후보 5개</span><span>구간 미리보기</span><span>SNS 문구</span><span>자막 편집기</span><span>AI 음성 WAV</span><span>브라우저 MP4</span></div>
+        <p>원본 MP4를 사용자의 브라우저에서 직접 처리해 자막이 들어간 세로 쇼츠를 만들 수 있습니다. AI 이미지 생성과 YouTube 원본 자동 다운로드는 무료판에서 제외합니다.</p>
       </section>
 
       <section className="panel">
@@ -322,9 +308,8 @@ export default function Home() {
         <div className="render-panel">
           <div className="render-top"><div><span className="eyebrow">무료 편집 자료</span><h3>자막과 AI 음성을 바로 만듭니다</h3></div></div>
           <div className="free-editor">
-            <div className="editor-actions">
+            <div className="editor-actions one">
               <button className="outline-cta" onClick={prepareCaptions} disabled={captionLoading}>{captionLoading ? '선택 구간 듣는 중…' : transcript.length ? '✓ 자막 준비됨' : '1. 선택 구간 자막 만들기'}</button>
-              <button className="outline-cta" onClick={downloadSrt} disabled={captionLoading}>{captionLoading ? '자막 준비 중…' : 'SRT 자막 다운로드'}</button>
             </div>
 
             {transcript.length > 0 && <>
@@ -335,7 +320,7 @@ export default function Home() {
               <label className="editor-label">AI 음성이 읽을 문장</label>
               <textarea className="narration" value={narrationText} onChange={(e)=>setNarrationText(e.target.value)} />
 
-              <div className="voice-row">
+              <div className="voice-row" id="voice-section">
                 <div>
                   <label className="editor-label">AI 음성</label>
                   <select value={voice} onChange={(e)=>setVoice(e.target.value)}>
@@ -350,13 +335,21 @@ export default function Home() {
               <strong>AI 음성 완성</strong>
               <audio controls src={voiceUrl}/>
               <button className="outline-cta" onClick={downloadVoice}>WAV 음성 다운로드</button>
-              <p>이 WAV와 SRT를 CapCut·Premiere 등 무료/보유 편집기에 넣으면 원본 영상 대신 AI 음성을 사용하는 쇼츠로 편집할 수 있습니다.</p>
+              <p>AI 음성을 선택해 최종 MP4의 원본 음성을 교체할 수 있습니다.</p>
             </div>}
           </div>
+
+          {transcript.length > 0 && <SubtitleMp4Editor
+            selected={selected}
+            transcript={transcript}
+            voiceBlob={voiceBlob}
+            openingCaption={social?.openingCaption || selected.hook}
+            onApplyNarration={setNarrationText}
+          />}
         </div>
       </section>}
 
-      <footer>무료판은 Gemini 무료 등급의 범위 안에서 분석·텍스트·자막·TTS를 사용하도록 구성했습니다.</footer>
+      <footer>무료판은 Gemini 무료 등급 + 브라우저 FFmpeg로 분석·자막·TTS·MP4 제작을 처리하도록 구성했습니다.</footer>
     </main>
   );
 }
