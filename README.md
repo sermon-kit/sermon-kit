@@ -1,4 +1,4 @@
-# Sermon Kit Free v8
+# Sermon Kit Free v8.1
 
 무료 범위에서 동작하도록 구성한 설교 쇼츠 제작 웹앱입니다.
 
@@ -67,3 +67,8 @@ MP4 렌더링은 별도 서버를 사용하지 않고 `ffmpeg.wasm`을 사용해
 ## 참고
 
 첫 MP4 렌더링 때 브라우저가 FFmpeg WebAssembly 엔진을 내려받기 때문에 시간이 조금 걸립니다. 이후 렌더링은 브라우저에서 진행됩니다.
+
+
+## v8.1 배포 수정
+- Vercel TypeScript 빌드 오류 수정: FFmpeg progress 이벤트 타입을 명시적으로 추론하도록 변경했습니다.
+- `ffmpegRef`를 `any` 대신 FFmpeg 인스턴스 타입으로 지정했습니다.

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { FFmpeg as FFmpegInstance } from '@ffmpeg/ffmpeg';
 import type { Candidate } from '@/components/CandidateCard';
 
 type Caption = { start: number; duration: number; text: string };
@@ -132,7 +133,7 @@ export default function SubtitleMp4Editor({ selected, transcript, voiceBlob, ope
   const [renderError, setRenderError] = useState('');
   const [ffmpegReady, setFfmpegReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const ffmpegRef = useRef<any>(null);
+  const ffmpegRef = useRef<FFmpegInstance | null>(null);
 
   useEffect(() => {
     const rows = transcript.map((x, i) => {
@@ -201,8 +202,9 @@ export default function SubtitleMp4Editor({ selected, transcript, voiceBlob, ope
 
   async function loadFfmpeg() {
     if (ffmpegRef.current && ffmpegReady) return ffmpegRef.current;
-    const [{ FFmpeg }, { toBlobURL }] = await Promise.all([import('@ffmpeg/ffmpeg'), import('@ffmpeg/util')]);
-    const ffmpeg = ffmpegRef.current || new FFmpeg();
+    const { FFmpeg } = await import('@ffmpeg/ffmpeg');
+    const { toBlobURL } = await import('@ffmpeg/util');
+    const ffmpeg: FFmpegInstance = ffmpegRef.current ?? new FFmpeg();
     if (!ffmpegRef.current) {
       ffmpeg.on('progress', ({ progress }) => setProgress(Math.max(1, Math.min(99, Math.round(progress * 100)))));
       ffmpegRef.current = ffmpeg;
