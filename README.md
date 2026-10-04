@@ -21,3 +21,10 @@
 공개 YouTube 영상 URL을 Gemini가 직접 분석하는 구조입니다. YouTube URL 입력 기능은 Gemini API의 Preview 기능이므로, Google 측의 일시적 용량 부족이나 정책/제한 변화가 있을 수 있습니다.
 
 `npm install`은 이 작업 환경의 외부 네트워크 제한으로 빌드 검증을 완료하지 못했습니다.
+
+
+## v6 변경사항
+- Agentic 동영상 처리가 계정/모델에서 지원되지 않을 때 오류로 중단하지 않고 다음 지원 모델을 자동 시도합니다.
+- Agentic 지원 모델 목록을 공식 문서 기준으로 `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`로 수정했습니다.
+- Agentic 모델이 모두 혼잡/미지원이면 `media_processing`을 제거한 Static 모드로 자동 재시도합니다.
+- 이전 v5의 `gemini-3.5-flash` fallback은 제거했습니다.

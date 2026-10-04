@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '적절한 쇼츠 구간을 찾지 못했습니다. 다른 영상으로 시도해 주세요.' }, { status: 422 });
     }
 
-    return NextResponse.json({ videoId, transcript: [], candidates: safe });
+    return NextResponse.json({ videoId, transcript: [], candidates: safe, analysisModel: gemini.model, analysisMode: gemini.mode });
   } catch (error: any) {
     return NextResponse.json({
       error: '분석 중 오류가 발생했습니다.',
