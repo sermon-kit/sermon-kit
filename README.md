@@ -38,3 +38,9 @@ NEXT_PUBLIC_RENDER_WORKER_URL=https://your-render-worker.example.com
 ```
 
 `NEXT_PUBLIC_RENDER_WORKER_URL`은 쇼츠 MP4 렌더 서버를 별도로 배포한 뒤 설정합니다. 후보 분석만 테스트할 때는 없어도 됩니다.
+
+
+## v4 수정사항
+- Gemini Agentic video 요청에 `mime_type: "video/mp4"`를 추가했습니다.
+- v3에서 발생하던 `mime_type must be set when media_processing is specified` 오류를 수정했습니다.
+- 공개 YouTube URL + Gemini 3.8 Flash + AGENTIC 처리 구조를 유지합니다.

@@ -63,7 +63,10 @@ export async function POST(req: NextRequest) {
           role: 'user',
           parts: [
             {
-              file_data: { file_uri: canonicalUrl },
+              file_data: {
+                file_uri: canonicalUrl,
+                mime_type: 'video/mp4'
+              },
               media_processing: 'AGENTIC'
             },
             { text: prompt }
