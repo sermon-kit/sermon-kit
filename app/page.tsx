@@ -31,6 +31,7 @@ export default function Home() {
   const [socialLoading, setSocialLoading] = useState(false);
   const [social, setSocial] = useState<SocialPack | null>(null);
   const [layout, setLayout] = useState<'blur'|'crop'>('blur');
+  const [captionLoading, setCaptionLoading] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('sermon-shorts-gemini-key');
@@ -45,6 +46,7 @@ export default function Home() {
 
   function chooseCandidate(candidate: Candidate) {
     setSelected(candidate);
+    setTranscript([]);
     setSocial(null);
     setTimeout(() => document.getElementById('studio')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
   }
@@ -58,7 +60,7 @@ export default function Home() {
         body: JSON.stringify({ apiKey: apiKey.trim(), youtubeUrl: youtubeUrl.trim(), duration })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '분석에 실패했습니다.');
+      if (!res.ok) throw new Error(data.detail ? `${data.error} · ${data.detail}` : (data.error || '분석에 실패했습니다.'));
       setVideoId(data.videoId);
       setTranscript(data.transcript || []);
       setCandidates(data.candidates || []);
@@ -74,10 +76,10 @@ export default function Home() {
       const res = await fetch('/api/social', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: apiKey.trim(), candidate: selected, transcript })
+        body: JSON.stringify({ apiKey: apiKey.trim(), candidate: selected })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'SNS 문구 생성에 실패했습니다.');
+      if (!res.ok) throw new Error(data.detail ? `${data.error} · ${data.detail}` : (data.error || 'SNS 문구 생성에 실패했습니다.'));
       setSocial(data);
     } catch (e: any) {
       setError(e.message || 'SNS 문구 생성 오류가 발생했습니다.');
@@ -97,6 +99,23 @@ export default function Home() {
     }
     setRendering(true); setError('');
     try {
+      let renderTranscript = transcript;
+      if (!renderTranscript.length) {
+        setCaptionLoading(true);
+        const captionRes = await fetch('/api/captions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: apiKey.trim(), youtubeUrl: youtubeUrl.trim(), candidate: selected })
+        });
+        const captionData = await captionRes.json();
+        if (!captionRes.ok) {
+          throw new Error(captionData.detail ? `${captionData.error} · ${captionData.detail}` : (captionData.error || '자막 생성에 실패했습니다.'));
+        }
+        renderTranscript = captionData.transcript || [];
+        setTranscript(renderTranscript);
+        setCaptionLoading(false);
+      }
+
       const form = new FormData();
       form.append('video', sourceVideo);
       form.append('start', String(selected.start));
@@ -104,11 +123,11 @@ export default function Home() {
       form.append('title', selected.title);
       form.append('hook', social?.openingCaption || selected.hook);
       form.append('layout', layout);
-      form.append('transcript', JSON.stringify(transcript));
+      form.append('transcript', JSON.stringify(renderTranscript));
       const res = await fetch(`${worker.replace(/\/$/, '')}/render`, { method: 'POST', body: form });
       if (!res.ok) {
         let message = '영상 렌더링에 실패했습니다.';
-        try { const detail = await res.json(); message = detail?.error || message; } catch {}
+        try { const detail = await res.json(); message = detail?.detail ? `${detail.error} · ${detail.detail}` : (detail?.error || message); } catch {}
         throw new Error(message);
       }
       const blob = await res.blob();
@@ -120,7 +139,10 @@ export default function Home() {
       URL.revokeObjectURL(url);
     } catch (e: any) {
       setError(e.message || '렌더링 오류가 발생했습니다.');
-    } finally { setRendering(false); }
+    } finally {
+      setCaptionLoading(false);
+      setRendering(false);
+    }
   }
 
   return (
@@ -135,7 +157,7 @@ export default function Home() {
         <div className="step">
           <div className="number">1</div>
           <div className="step-body">
-            <div className="label-row"><label>Gemini API 키</label><span className="saved">✓ 브라우저 저장</span></div>
+            <div className="label-row"><label>Gemini API 키</label>{apiKey ? <span className="saved">✓ 브라우저 저장됨</span> : <span className="hint">미입력</span>}</div>
             <div className="input-wrap"><span>🔑</span><input type={showKey ? 'text' : 'password'} value={apiKey} onChange={(e)=>setApiKey(e.target.value)} placeholder="AIza..."/><button onClick={()=>setShowKey(v=>!v)}>{showKey ? '숨김' : '보기'}</button></div>
             <p className="hint">개인용 MVP 구조입니다. API 키는 브라우저에 저장되고 분석 요청 때만 사용됩니다.</p>
           </div>
@@ -221,7 +243,7 @@ export default function Home() {
               <button className={layout==='crop'?'active':''} onClick={()=>setLayout('crop')}>화면 꽉 채우기</button>
             </div>
 
-            <button className="cta" disabled={!sourceVideo || rendering} onClick={renderSelected}>{rendering ? '9:16 MP4 렌더링 중…' : '9:16 자막 쇼츠 MP4 만들기'}</button>
+            <button className="cta" disabled={!sourceVideo || rendering} onClick={renderSelected}>{captionLoading ? 'AI 자막 준비 중…' : rendering ? '9:16 MP4 렌더링 중…' : '9:16 자막 쇼츠 MP4 만들기'}</button>
           </div>
         </div>
       </section>}
