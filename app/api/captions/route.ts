@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractYouTubeId } from '@/lib/youtube';
+import { generateContentWithFallback } from '@/lib/gemini';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -37,9 +38,6 @@ export async function POST(req: NextRequest) {
     const canonicalUrl = `https://www.youtube.com/watch?v=${videoId}`;
     const start = Math.max(0, Math.floor(Number(candidate.start || 0)));
     const end = Math.max(start + 1, Math.floor(Number(candidate.end || start + 60)));
-    const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
-
     const prompt = `첨부된 한국어 설교 YouTube 영상에서 ${start}초부터 ${end}초까지만 듣고, 영상 자막용 발화문을 가능한 한 실제 발화 그대로 추출하라.
 
 규칙:
@@ -55,39 +53,34 @@ export async function POST(req: NextRequest) {
   {"start":123,"duration":2.4,"text":"실제 발화 문장"}
 ]`;
 
-    const geminiRes = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          role: 'user',
-          parts: [
-            {
-              file_data: {
-                file_uri: canonicalUrl,
-                mime_type: 'video/mp4'
-              },
-              media_processing: 'AGENTIC'
+    const gemini = await generateContentWithFallback(apiKey, {
+      contents: [{
+        role: 'user',
+        parts: [
+          {
+            file_data: {
+              file_uri: canonicalUrl,
+              mime_type: 'video/mp4'
             },
-            { text: prompt }
-          ]
-        }],
-        generationConfig: {
-          temperature: 0.05,
-          responseMimeType: 'application/json'
-        }
-      })
+            media_processing: 'AGENTIC'
+          },
+          { text: prompt }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.05,
+        responseMimeType: 'application/json'
+      }
     });
 
-    if (!geminiRes.ok) {
-      const raw = await geminiRes.text();
+    if (!gemini.ok) {
       return NextResponse.json({
         error: '선택 구간 자막을 만들지 못했습니다.',
-        detail: geminiErrorMessage(raw).slice(0, 900)
+        detail: gemini.detail.slice(0, 900)
       }, { status: 502 });
     }
 
-    const data = await geminiRes.json();
+    const data = gemini.data;
     const text = modelText(data);
     let captions: any[] = [];
     try {

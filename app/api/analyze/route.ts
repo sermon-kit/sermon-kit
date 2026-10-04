@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractYouTubeId } from '@/lib/youtube';
+import { generateContentWithFallback } from '@/lib/gemini';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -50,9 +51,6 @@ export async function POST(req: NextRequest) {
     // Vercel에서 YouTube 자막을 직접 긁어오는 방식은 차단/변경에 취약합니다.
     // Gemini의 공식 YouTube URL 입력 기능으로 공개 영상을 직접 분석합니다.
     const canonicalUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
-
     const prompt = `당신은 한국 교회 설교 쇼츠 편집자다. 첨부된 공개 YouTube 설교 영상을 직접 분석하라.
 
 목표: ${duration}초 안팎의 쇼츠 후보 5개를 찾는다.
@@ -82,39 +80,36 @@ export async function POST(req: NextRequest) {
   }
 ]`;
 
-    const geminiRes = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          role: 'user',
-          parts: [
-            {
-              file_data: {
-                file_uri: canonicalUrl,
-                mime_type: 'video/mp4'
-              },
-              media_processing: 'AGENTIC'
+    const gemini = await generateContentWithFallback(apiKey, {
+      contents: [{
+        role: 'user',
+        parts: [
+          {
+            file_data: {
+              file_uri: canonicalUrl,
+              mime_type: 'video/mp4'
             },
-            { text: prompt }
-          ]
-        }],
-        generationConfig: {
-          temperature: 0.3,
-          responseMimeType: 'application/json'
-        }
-      })
+            media_processing: 'AGENTIC'
+          },
+          { text: prompt }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.3,
+        responseMimeType: 'application/json'
+      }
     });
 
-    if (!geminiRes.ok) {
-      const raw = await geminiRes.text();
+    if (!gemini.ok) {
       return NextResponse.json({
-        error: 'Gemini가 영상을 분석하지 못했습니다.',
-        detail: geminiErrorMessage(raw).slice(0, 900)
+        error: gemini.status === 429 || gemini.status >= 500
+          ? 'Gemini 서버가 혼잡해 분석하지 못했습니다.'
+          : 'Gemini가 영상을 분석하지 못했습니다.',
+        detail: gemini.detail.slice(0, 900)
       }, { status: 502 });
     }
 
-    const data = await geminiRes.json();
+    const data = gemini.data;
     const text = modelText(data);
     if (!text) {
       return NextResponse.json({ error: 'Gemini 응답에서 분석 결과를 읽지 못했습니다.' }, { status: 502 });

@@ -1,46 +1,23 @@
-# 설교 쇼츠 자동 생성기 MVP v3
+# Sermon Shorts MVP v5
 
-## v3 핵심 수정
+## v5 변경점
 
-v2의 `youtube-transcript` 방식은 Vercel 서버에서 YouTube 자막 접근이 차단되거나 YouTube 내부 형식이 바뀌면 `분석 중 오류가 발생했습니다`가 날 수 있습니다.
+이번 버전은 Gemini의 일시적인 `high demand` / `overloaded` 오류에 더 잘 버티도록 수정했습니다.
 
-v3는 **Gemini 공식 YouTube URL 입력 기능**을 사용해 공개 YouTube 영상을 Gemini가 직접 분석합니다.
+- 기본 모델: `gemini-3.8-flash`
+- 일시적 혼잡(429/5xx, high demand 등)이 발생하면 짧게 재시도
+- 계속 실패하면 `gemini-3.7-flash` → `gemini-3.6-flash` → `gemini-3.5-flash` 순서로 자동 대체
+- 잘못된 API 키, 권한, 잘못된 요청 같은 비일시적 오류는 즉시 사용자에게 표시
+- 분석, 자막 생성, SNS 문구 생성 모두 같은 자동 재시도/대체 모델 로직 적용
 
-- YouTube 자막 수집 라이브러리 제거
-- 신규 프로젝트 권장 모델 `gemini-3.8-flash` 기본값
-- 긴 설교 분석에 agentic video processing 사용
-- 오류 상세 내용을 화면에 표시
-- 선택한 구간의 자막은 렌더 직전에 Gemini가 해당 구간을 다시 듣고 생성
-- API 키 저장 표시를 실제 입력 여부에 맞게 수정
+## 배포
 
-## 사용 흐름
+기존 GitHub 저장소에 v5 폴더 안의 파일과 폴더를 그대로 덮어 올리고 `Commit changes`를 누르면 Vercel이 자동 재배포합니다.
 
-1. Gemini API 키 입력
-2. **공개(Public)** YouTube 설교 URL 입력
-3. 30초 / 1분 / 3분 선택
-4. Gemini가 YouTube 영상을 직접 분석해 후보 5개 선정
-5. 구간 선택
-6. 원본 MP4 업로드
-7. 렌더 직전에 선택 구간 자막 생성
-8. 별도 FFmpeg 워커에서 9:16 MP4 렌더링
+> ZIP 자체를 GitHub에 올리지 말고, ZIP을 푼 뒤 안의 파일과 폴더를 업로드하세요.
 
-## 주의
+## 참고
 
-Gemini의 YouTube URL 입력은 **공개 영상만 지원**합니다. 비공개 또는 일부 공개(unlisted) 영상은 분석할 수 없습니다.
+공개 YouTube 영상 URL을 Gemini가 직접 분석하는 구조입니다. YouTube URL 입력 기능은 Gemini API의 Preview 기능이므로, Google 측의 일시적 용량 부족이나 정책/제한 변화가 있을 수 있습니다.
 
-## Vercel 환경변수
-
-Settings → Environment Variables에서 필요하면 아래를 추가합니다.
-
-```text
-GEMINI_MODEL=gemini-3.8-flash
-NEXT_PUBLIC_RENDER_WORKER_URL=https://your-render-worker.example.com
-```
-
-`NEXT_PUBLIC_RENDER_WORKER_URL`은 쇼츠 MP4 렌더 서버를 별도로 배포한 뒤 설정합니다. 후보 분석만 테스트할 때는 없어도 됩니다.
-
-
-## v4 수정사항
-- Gemini Agentic video 요청에 `mime_type: "video/mp4"`를 추가했습니다.
-- v3에서 발생하던 `mime_type must be set when media_processing is specified` 오류를 수정했습니다.
-- 공개 YouTube URL + Gemini 3.8 Flash + AGENTIC 처리 구조를 유지합니다.
+`npm install`은 이 작업 환경의 외부 네트워크 제한으로 빌드 검증을 완료하지 못했습니다.
