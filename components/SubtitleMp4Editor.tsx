@@ -131,6 +131,8 @@ export default function SubtitleMp4Editor({ selected, transcript, voiceBlob, ope
   const [rendering, setRendering] = useState(false);
   const [progress, setProgress] = useState(0);
   const [renderError, setRenderError] = useState('');
+  const [renderedBlob, setRenderedBlob] = useState<Blob | null>(null);
+  const [renderedUrl, setRenderedUrl] = useState('');
   const [ffmpegReady, setFfmpegReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const ffmpegRef = useRef<FFmpegInstance | null>(null);
@@ -157,11 +159,23 @@ export default function SubtitleMp4Editor({ selected, transcript, voiceBlob, ope
 
   const activeCaption = useMemo(() => captions.find(c => currentTime >= c.start && currentTime <= c.end), [captions, currentTime]);
 
+  useEffect(() => () => {
+    if (renderedUrl) URL.revokeObjectURL(renderedUrl);
+  }, [renderedUrl]);
+
+  function clearRendered() {
+    if (renderedUrl) URL.revokeObjectURL(renderedUrl);
+    setRenderedUrl('');
+    setRenderedBlob(null);
+  }
+
   function updateCaption(id: string, patch: Partial<EditCaption>) {
+    clearRendered();
     setCaptions(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
   }
 
   function addCaption() {
+    clearRendered();
     const lastEnd = captions.length ? captions[captions.length - 1].end : 0;
     const start = Math.min(clipDuration - 0.5, Math.max(0, lastEnd));
     const end = Math.min(clipDuration, start + 2.5);
@@ -169,10 +183,12 @@ export default function SubtitleMp4Editor({ selected, transcript, voiceBlob, ope
   }
 
   function removeCaption(id: string) {
+    clearRendered();
     setCaptions(prev => prev.filter(c => c.id !== id));
   }
 
   function normalizeCaptions() {
+    clearRendered();
     setCaptions(prev => [...prev]
       .map(c => ({ ...c, start: Math.max(0, Math.min(clipDuration, c.start)), end: Math.max(0, Math.min(clipDuration, c.end)) }))
       .map(c => c.end <= c.start ? { ...c, end: Math.min(clipDuration, c.start + 0.8) } : c)
@@ -236,6 +252,7 @@ export default function SubtitleMp4Editor({ selected, transcript, voiceBlob, ope
       return;
     }
 
+    clearRendered();
     setRendering(true);
     setProgress(1);
     setRenderError('');
@@ -328,7 +345,9 @@ export default function SubtitleMp4Editor({ selected, transcript, voiceBlob, ope
       const data = await ffmpeg.readFile(outputName);
       const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
       const blob = new Blob([new Uint8Array(bytes)], { type: 'video/mp4' });
-      downloadBlob(blob, `sermon-short-${selected.id}.mp4`);
+      const url = URL.createObjectURL(blob);
+      setRenderedBlob(blob);
+      setRenderedUrl(url);
       setProgress(100);
 
       const cleanup = [sourceName, outputName, ...(audioMode === 'ai' ? [voiceName] : []), ...overlayFiles.map(x => x.name)];
@@ -340,6 +359,12 @@ export default function SubtitleMp4Editor({ selected, transcript, voiceBlob, ope
     } finally {
       setRendering(false);
     }
+  }
+
+
+  function downloadRenderedMp4() {
+    if (!renderedBlob) return;
+    downloadBlob(renderedBlob, `sermon-short-${selected.id}.mp4`);
   }
 
   return (
@@ -399,29 +424,33 @@ export default function SubtitleMp4Editor({ selected, transcript, voiceBlob, ope
 
         <div className="render-controls">
           <label className="upload-label">원본 설교 MP4
-            <input type="file" accept="video/mp4,video/quicktime,video/*" onChange={e => setSourceFile(e.target.files?.[0] || null)}/>
+            <input type="file" accept="video/mp4,video/quicktime,video/*" onChange={e => { clearRendered(); setSourceFile(e.target.files?.[0] || null); }}/>
           </label>
           <p className="render-note">파일은 서버로 업로드하지 않고 현재 브라우저에서만 처리합니다. 긴 원본은 PC 메모리를 많이 사용할 수 있습니다.</p>
 
           <div className="option-block">
             <strong>세로 화면</strong>
-            <div className="segmented"><button className={layout === 'blur' ? 'active' : ''} onClick={() => setLayout('blur')}>원본 유지 + 흐린 배경</button><button className={layout === 'crop' ? 'active' : ''} onClick={() => setLayout('crop')}>화면 꽉 채우기</button></div>
+            <div className="segmented"><button className={layout === 'blur' ? 'active' : ''} onClick={() => { clearRendered(); setLayout('blur'); }}>원본 유지 + 흐린 배경</button><button className={layout === 'crop' ? 'active' : ''} onClick={() => { clearRendered(); setLayout('crop'); }}>화면 꽉 채우기</button></div>
           </div>
 
           <div className="option-block">
             <strong>음성</strong>
-            <div className="segmented"><button className={audioMode === 'original' ? 'active' : ''} onClick={() => setAudioMode('original')}>원본 설교 음성</button><button disabled={!voiceBlob} className={audioMode === 'ai' ? 'active' : ''} onClick={() => setAudioMode('ai')}>AI 음성{!voiceBlob ? ' (먼저 생성)' : ''}</button></div>
+            <div className="segmented"><button className={audioMode === 'original' ? 'active' : ''} onClick={() => { clearRendered(); setAudioMode('original'); }}>원본 설교 음성</button><button disabled={!voiceBlob} className={audioMode === 'ai' ? 'active' : ''} onClick={() => { clearRendered(); setAudioMode('ai'); }}>AI 음성{!voiceBlob ? ' (먼저 생성)' : ''}</button></div>
           </div>
 
           <div className="option-block">
             <strong>해상도</strong>
-            <div className="segmented"><button className={resolution === '720' ? 'active' : ''} onClick={() => setResolution('720')}>720×1280 · 추천</button><button className={resolution === '1080' ? 'active' : ''} onClick={() => setResolution('1080')}>1080×1920 · 느림</button></div>
+            <div className="segmented"><button className={resolution === '720' ? 'active' : ''} onClick={() => { clearRendered(); setResolution('720'); }}>720×1280 · 추천</button><button className={resolution === '1080' ? 'active' : ''} onClick={() => { clearRendered(); setResolution('1080'); }}>1080×1920 · 느림</button></div>
           </div>
 
-          <button className="cta render-button" disabled={rendering || !sourceFile} onClick={renderMp4}>{rendering ? `MP4 만드는 중… ${progress}%` : '9:16 자막 쇼츠 MP4 만들기'}</button>
+          <div className="mp4-action-grid">
+            <button className="cta render-button" disabled={rendering || !sourceFile} onClick={renderMp4}>{rendering ? `MP4 만드는 중… ${progress}%` : '1. 9:16 쇼츠 MP4 만들기'}</button>
+            <button className="download-cta" disabled={!renderedBlob || rendering} onClick={downloadRenderedMp4}>2. 완성 MP4 다운로드</button>
+          </div>
           {rendering && <div className="progress-track"><div style={{ width: `${progress}%` }}/></div>}
           {renderError && <div className="error compact-error">{renderError}</div>}
-          <p className="render-note">첫 실행 때 FFmpeg 엔진을 한 번 내려받습니다. 이후 영상 변환은 브라우저 안에서 진행되므로 별도 렌더 서버 비용이 없습니다.</p>
+          {renderedUrl && <div className="rendered-result"><strong>완성된 쇼츠</strong><video src={renderedUrl} controls playsInline/><button className="download-cta ready" onClick={downloadRenderedMp4}>MP4 파일 다운로드</button></div>}
+          <p className="render-note">첫 실행 때 FFmpeg 엔진을 한 번 내려받습니다. 완성되면 위의 ‘완성 MP4 다운로드’ 버튼이 활성화됩니다.</p>
         </div>
       </div>
     </div>

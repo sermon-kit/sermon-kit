@@ -14,6 +14,7 @@ type RawCandidate = {
   summary: string;
   hookScore: number;
   messageScore: number;
+  viewScore?: number;
 };
 
 function stripJsonFence(text: string) {
@@ -38,7 +39,7 @@ function geminiErrorMessage(raw: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { apiKey, youtubeUrl, duration } = await req.json();
+    const { apiKey, youtubeUrl, duration, analysisStyle = 'balanced' } = await req.json();
     if (!apiKey || !youtubeUrl || !duration) {
       return NextResponse.json({ error: 'API 키, 유튜브 링크, 길이를 모두 입력해 주세요.' }, { status: 400 });
     }
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
     const prompt = `당신은 한국 교회 설교 쇼츠 편집자다. 첨부된 공개 YouTube 설교 영상을 직접 분석하라.
 
 목표: ${duration}초 안팎의 쇼츠 후보 5개를 찾는다.
+후보 선정 모드: ${analysisStyle === 'views' ? '조회수·시청 유지 우선. 다만 신학과 문맥 정확성은 절대 희생하지 않는다.' : '메시지 완결성과 조회 가능성을 균형 있게 평가한다.'}
 
 선정 원칙:
 1. 설교자의 원래 의미를 왜곡하지 않는다.
@@ -65,6 +67,7 @@ export async function POST(req: NextRequest) {
 7. start/end는 영상 시작부터의 절대 초 단위 숫자다.
 8. 각 후보 길이는 목표 ${duration}초에서 ±15초 이내를 우선한다. 단, 의미가 끊기면 최대 ±25초까지 허용한다.
 9. 영상의 실제 음성과 타임라인을 근거로 시간을 정한다.
+10. 공감되는 문제, 긴장감, 의외성, 명확한 적용, 댓글/공유를 부를 질문이 있는 구간은 viewScore를 높게 평가한다. 낚시성 과장은 금지한다.
 
 반드시 아래 JSON 배열만 반환한다. 마크다운 금지.
 [
@@ -76,7 +79,8 @@ export async function POST(req: NextRequest) {
     "reason":"선정 이유",
     "summary":"구간 핵심 요약",
     "hookScore":5,
-    "messageScore":5
+    "messageScore":5,
+    "viewScore":5
   }
 ]`;
 
@@ -139,7 +143,8 @@ export async function POST(req: NextRequest) {
         reason: String(c.reason || ''),
         summary: String(c.summary || ''),
         hookScore: Math.min(5, Math.max(1, Number(c.hookScore || 3))),
-        messageScore: Math.min(5, Math.max(1, Number(c.messageScore || 3)))
+        messageScore: Math.min(5, Math.max(1, Number(c.messageScore || 3))),
+        viewScore: Math.min(5, Math.max(1, Number(c.viewScore || 3)))
       }));
 
     if (!safe.length) {

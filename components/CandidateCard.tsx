@@ -12,10 +12,12 @@ export type Candidate = {
   summary: string;
   hookScore: number;
   messageScore: number;
+  viewScore?: number;
 };
 
 function Stars({ value }: { value: number }) {
-  return <span className="stars">{'★'.repeat(value)}{'☆'.repeat(Math.max(0, 5 - value))}</span>;
+  const safe = Math.min(5, Math.max(0, Math.round(value || 0)));
+  return <span className="stars">{'★'.repeat(safe)}{'☆'.repeat(Math.max(0, 5 - safe))}</span>;
 }
 
 export default function CandidateCard({
@@ -45,6 +47,7 @@ export default function CandidateCard({
       <div className="scores">
         <span>후킹 <Stars value={candidate.hookScore} /></span>
         <span>메시지 <Stars value={candidate.messageScore} /></span>
+        <span>조회 가능성 <Stars value={candidate.viewScore || 3} /></span>
       </div>
       <div className="candidate-actions">
         <a className="secondary-btn" href={preview} target="_blank" rel="noreferrer">원본에서 보기</a>
